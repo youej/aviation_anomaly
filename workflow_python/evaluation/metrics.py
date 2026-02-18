@@ -6,6 +6,7 @@ reinitialize models) and the colab_realtime.ipynb cross() function (used
 fragile isinstance checks for model reinitialization).
 
 Now uses a model_factory callable for clean per-fold reinitialization.
+Includes EarlyStopping + ReduceLROnPlateau for training stability.
 """
 
 import time
@@ -17,10 +18,21 @@ from sklearn.metrics import (
 )
 
 
+def _build_callbacks(early_stopping_cfg=None, reduce_lr_cfg=None):
+    """Build Keras callbacks from config dicts."""
+    callbacks = []
+    if early_stopping_cfg:
+        callbacks.append(tf.keras.callbacks.EarlyStopping(**early_stopping_cfg))
+    if reduce_lr_cfg:
+        callbacks.append(tf.keras.callbacks.ReduceLROnPlateau(**reduce_lr_cfg))
+    return callbacks
+
+
 def cross_validate(model_factory, train_x_list, train_y_list,
                    test_x_list, test_y_list,
-                   num_folds=5, epochs=30, batch_size=128,
-                   verbose=True):
+                   num_folds=5, epochs=50, batch_size=128,
+                   early_stopping_cfg=None, reduce_lr_cfg=None,
+                   seed=None, verbose=True):
     """
     K-fold cross-validation with comprehensive metrics.
 
@@ -35,19 +47,31 @@ def cross_validate(model_factory, train_x_list, train_y_list,
         test_x_list: List of test data per fold.
         test_y_list: List of test labels per fold.
         num_folds: Number of folds to use.
-        epochs: Training epochs per fold.
+        epochs: Max training epochs per fold (early stopping may cut short).
         batch_size: Batch size for training.
+        early_stopping_cfg: Dict of EarlyStopping kwargs (or None to disable).
+        reduce_lr_cfg: Dict of ReduceLROnPlateau kwargs (or None to disable).
+        seed: Random seed for reproducibility.
         verbose: Whether to print progress.
 
     Returns:
         dict with keys:
             'per_fold': List of per-fold metric dicts.
             'averages': Averaged metrics across folds.
-            'epoch_histories': Per-epoch train/test accuracy per fold.
+            'epoch_histories': Per-epoch train/test accuracy/loss per fold.
     """
+    if seed is not None:
+        tf.random.set_seed(seed)
+        np.random.seed(seed)
+
     per_fold = []
-    epoch_train_accs = []
-    epoch_test_accs = []
+    epoch_histories = {
+        'train_accuracy': [],
+        'test_accuracy': [],
+        'train_loss': [],
+        'test_loss': [],
+        'learning_rate': [],
+    }
 
     for fold in range(num_folds):
         if verbose:
@@ -62,11 +86,16 @@ def cross_validate(model_factory, train_x_list, train_y_list,
 
         # Fresh model per fold — critical to avoid weight leakage
         tf.keras.backend.clear_session()
+        if seed is not None:
+            tf.random.set_seed(seed + fold)
         model = model_factory()
 
         # Count parameters
         keras_model = getattr(model, 'model', model)
         n_params = keras_model.count_params()
+
+        # Build callbacks
+        callbacks = _build_callbacks(early_stopping_cfg, reduce_lr_cfg)
 
         # --- Train ---
         t_start = time.time()
@@ -74,14 +103,25 @@ def cross_validate(model_factory, train_x_list, train_y_list,
             train_X, train_y,
             epochs=epochs,
             batch_size=batch_size,
-            validation_data=(test_X, test_y)
+            validation_data=(test_X, test_y),
+            callbacks=callbacks,
         )
         training_time = time.time() - t_start
 
+        actual_epochs = len(history.history['loss'])
+
         # Store epoch-level histories
-        epoch_train_accs.append(history.history['accuracy'])
-        epoch_test_accs.append(history.history.get('val_accuracy',
-                                                    history.history['accuracy']))
+        epoch_histories['train_accuracy'].append(history.history['accuracy'])
+        epoch_histories['test_accuracy'].append(
+            history.history.get('val_accuracy', history.history['accuracy'])
+        )
+        epoch_histories['train_loss'].append(history.history['loss'])
+        epoch_histories['test_loss'].append(
+            history.history.get('val_loss', history.history['loss'])
+        )
+        # Track LR changes if ReduceLROnPlateau was used
+        if 'lr' in history.history:
+            epoch_histories['learning_rate'].append(history.history['lr'])
 
         # --- Predict with timing ---
         t_start = time.time()
@@ -98,6 +138,7 @@ def cross_validate(model_factory, train_x_list, train_y_list,
         fold_result = {
             'fold': fold + 1,
             'n_params': int(n_params),
+            'actual_epochs': actual_epochs,
             'training_time_s': round(training_time, 2),
             'inference_time_s': round(inference_time, 4),
             'train': _compute_metrics(train_y_flat, train_preds, train_preds_prob,
@@ -115,7 +156,8 @@ def cross_validate(model_factory, train_x_list, train_y_list,
         if verbose:
             t = fold_result['train']
             v = fold_result['test']
-            print(f"\n  Train — Acc: {t['accuracy']:.4f}  F1: {t['f1']:.4f}  "
+            print(f"\n  Epochs used: {actual_epochs}/{epochs}")
+            print(f"  Train — Acc: {t['accuracy']:.4f}  F1: {t['f1']:.4f}  "
                   f"AUC: {t['auc_roc']:.4f}")
             print(f"  Test  — Acc: {v['accuracy']:.4f}  F1: {v['f1']:.4f}  "
                   f"AUC: {v['auc_roc']:.4f}")
@@ -141,15 +183,13 @@ def cross_validate(model_factory, train_x_list, train_y_list,
         print(f"  Test Recall:    {a['test']['recall_mean']:.4f} ± "
               f"{a['test']['recall_std']:.4f}")
         print(f"  Avg Train Time: {a['training_time_s_mean']:.1f}s")
+        print(f"  Avg Epochs:     {a['actual_epochs_mean']:.1f}")
         print(f"  Parameters:     {per_fold[0]['n_params']:,}")
 
     return {
         'per_fold': per_fold,
         'averages': averages,
-        'epoch_histories': {
-            'train_accuracy': epoch_train_accs,
-            'test_accuracy': epoch_test_accs,
-        },
+        'epoch_histories': epoch_histories,
     }
 
 
@@ -182,6 +222,9 @@ def _compute_averages(per_fold):
     )
     averages['inference_time_s_mean'] = round(
         float(np.mean([f['inference_time_s'] for f in per_fold])), 4
+    )
+    averages['actual_epochs_mean'] = round(
+        float(np.mean([f['actual_epochs'] for f in per_fold])), 1
     )
     averages['n_params'] = per_fold[0]['n_params']
 

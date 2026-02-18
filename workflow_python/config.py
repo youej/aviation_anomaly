@@ -10,7 +10,7 @@ from tensorflow.keras.regularizers import l2
 
 # ── Data Configuration ─────────────────────────────────────────────────────
 
-DATA_DIR = '../data/'                      # Relative to workflow_real/
+DATA_DIR = '../data/'                      # Relative to workflow_python/
 RESULTS_DIR = '../results/'                # Where experiment results are saved
 MAX_TIMESTEPS = 81                         # Maximum number of timesteps per flight
 INPUT_SHAPE = (81, 23)                     # (timesteps, features) after filtering
@@ -38,8 +38,26 @@ CHECKPOINT_MAPS = {
 
 # ── Training Configuration ────────────────────────────────────────────────
 
-EPOCHS = 30
+EPOCHS = 50                                # Max epochs (early stopping will cut short)
 BATCH_SIZE = 128
+RANDOM_SEED = 42                           # For reproducibility
+
+# Early stopping: stop training if val_loss doesn't improve for `patience` epochs
+EARLY_STOPPING = {
+    'monitor': 'val_loss',
+    'patience': 5,
+    'restore_best_weights': True,           # Roll back to best epoch
+    'verbose': 1,
+}
+
+# Reduce learning rate when val_loss plateaus
+REDUCE_LR = {
+    'monitor': 'val_loss',
+    'factor': 0.5,                          # Halve the LR
+    'patience': 3,                          # Wait 3 epochs before reducing
+    'min_lr': 1e-6,
+    'verbose': 1,
+}
 
 
 # ── GRU Hyperparameters ───────────────────────────────────────────────────

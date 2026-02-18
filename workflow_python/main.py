@@ -51,8 +51,9 @@ def main():
 
     # Import config (deferred to avoid TF import on --list)
     from config import (
-        DATA_DIR, RESULTS_DIR, EPOCHS, NUM_FOLDS,
+        DATA_DIR, RESULTS_DIR, EPOCHS, NUM_FOLDS, RANDOM_SEED,
         CHECKPOINT_MAPS, get_model_factories,
+        EARLY_STOPPING, REDUCE_LR,
         MC_DROPOUT_CONFIG, LIME_CONFIG, SHAP_CONFIG, GRADCAM_CONFIG,
     )
 
@@ -146,6 +147,9 @@ def main():
                 test_y_list=test_y_cp,
                 num_folds=num_folds,
                 epochs=epochs,
+                early_stopping_cfg=EARLY_STOPPING,
+                reduce_lr_cfg=REDUCE_LR,
+                seed=RANDOM_SEED,
             )
 
             result = {

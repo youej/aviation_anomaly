@@ -51,9 +51,9 @@ class BaseGRU:
     def summary(self):
         return self.model.summary()
 
-    def fit(self, x, y, epochs=10, batch_size=32, validation_data=None):
+    def fit(self, x, y, epochs=10, batch_size=32, validation_data=None, **kwargs):
         return self.model.fit(x, y, epochs=epochs, batch_size=batch_size,
-                              validation_data=validation_data)
+                              validation_data=validation_data, **kwargs)
 
     def evaluate(self, x, y):
         return self.model.evaluate(x, y)

@@ -305,12 +305,15 @@ class EARLIEST:
     def summary(self):
         return self.model.summary()
 
-    def fit(self, x, y, epochs=30, batch_size=128, validation_data=None):
+    def fit(self, x, y, epochs=30, batch_size=128, validation_data=None, **kwargs):
         """
         Standard fit interface.
 
         Uses the composite training (classifier + policy) internally,
         then returns a history-like object compatible with the existing pipeline.
+
+        Note: Keras callbacks (EarlyStopping, ReduceLROnPlateau) are accepted
+        via **kwargs but not used — EARLIEST has its own custom training loop.
         """
         history = self.train_with_policy(x, y, epochs=epochs, batch_size=batch_size,
                                          validation_data=validation_data)
