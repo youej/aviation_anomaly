@@ -1,6 +1,6 @@
 # Aviation Anomaly Detection
 
-Deep learning benchmark for proactive flight safety anomaly prediction, developed at the Vanderbilt University Institute for Software Integrated Systems (ISIS).
+Deep learning benchmark for proactive flight safety anomaly prediction, developed at the Vanderbilt Data Science Institute under Professor Yingxiao Kong.
 
 ## Research Contributions
 
