@@ -186,6 +186,13 @@ def main():
                         'ece': float(analysis['calibration']['expected_calibration_error']),
                         'correct_unc': float(analysis['correct_uncertainty_mean']),
                         'incorrect_unc': float(analysis['incorrect_uncertainty_mean']),
+                        # Save full arrays for visualization
+                        'uncertainty_correct': analysis['uncertainty_correct'].tolist(),
+                        'uncertainty_incorrect': analysis['uncertainty_incorrect'].tolist(),
+                        'calibration': {
+                            'fraction_of_positives': analysis['calibration']['fraction_of_positives'].tolist(),
+                            'mean_predicted_value': analysis['calibration']['mean_predicted_value'].tolist(),
+                        },
                     }
                     print(f"  ECE: {explain_results['mc_dropout']['ece']:.4f}")
 
@@ -194,7 +201,15 @@ def main():
                     print("\n--- Grad-CAM ---")
                     n = min(GRADCAM_CONFIG['max_samples'], len(test_x_cp[last]))
                     gc = explain_fn(explain_model_instance, test_x_cp[last][:n])
-                    explain_results['gradient'] = {'method': gc['method']}
+                    
+                    # 'temporal_heatmap' is the key returned by both grad_cam and gradient_saliency
+                    heatmap_data = gc['temporal_heatmap']
+                    
+                    explain_results['gradient'] = {
+                        'method': gc['method'],
+                        'heatmap_mean': heatmap_data.mean(axis=0).tolist(),
+                        'heatmap': heatmap_data.tolist()[:10],  # Save first 10 for detailed check
+                    }
                     print(f"  Method: {gc['method']}")
 
                 if args.lime:

@@ -466,7 +466,11 @@ class EARLIEST:
         return loss, acc
 
     def predict(self, x):
-        return self.model.predict(x)
+        # Must use _predict_with_policy for the same reason as evaluate().
+        # Standard self.model.predict() uses the final hidden state (h_81),
+        # but the classifier assumes h_t where t is the halting time.
+        preds, _ = self._predict_with_policy(x)
+        return preds
 
     def save(self, filepath):
         self.model.save(filepath)

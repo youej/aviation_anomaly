@@ -127,7 +127,7 @@ EARLIEST_CONFIG = {
 # ── Explainability Configuration ──────────────────────────────────────────
 
 MC_DROPOUT_CONFIG = {
-    'n_forward_passes': 50,
+    'n_forward': 50,
     'batch_size': 256,
 }
 
