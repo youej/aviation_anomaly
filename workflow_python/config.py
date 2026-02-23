@@ -19,11 +19,12 @@ NUM_FOLDS = 5                              # Cross-validation folds
 
 # ── Checkpoint Configuration ───────────────────────────────────────────────
 
-CHECKPOINTS = [25, 50, 75, 100]            # Percentage of flight completion
+CHECKPOINTS = [25, 50, 75, 90, 100]        # Percentage of flight completion
 
 # Percentage maps for different scenarios
 CHECKPOINT_MAPS = {
     100: {(100, 100): 1},                  # Full flight
+    90:  {(90, 90): 1},                    # 90% checkpoint
     75:  {(75, 75): 1},                    # 75% checkpoint
     50:  {(50, 50): 1},                    # 50% checkpoint
     25:  {(25, 25): 1},                    # 25% checkpoint

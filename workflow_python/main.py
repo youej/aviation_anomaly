@@ -26,6 +26,8 @@ def main():
     parser.add_argument('--cp', '--checkpoint', type=str, default='100',
                         dest='checkpoint',
                         help='Checkpoint %% or "all" (25, 50, 75, 100)')
+    parser.add_argument('--test-cp', type=str, default=None,
+                        help='Override testing Checkpoint %% (for asymmetric train/test)')
     parser.add_argument('--epochs', type=int, default=None,
                         help='Override default epochs')
     parser.add_argument('--folds', type=int, default=None,
@@ -109,19 +111,24 @@ def main():
     for model_key in models:
         model_info = registry[model_key]
         for cp in checkpoints:
+            test_cp = int(args.test_cp) if args.test_cp else cp
             exp_name = f"{model_key}_cp{cp}"
+            if args.test_cp:
+                exp_name += f"_test{test_cp}"
+            
             print(f"\n{'='*60}")
-            print(f"{model_info['name']} @ {cp}%")
+            print(f"{model_info['name']} @ Train {cp}% / Test {test_cp}%")
             print(f"{'='*60}")
 
             # Truncate data
-            cp_map = CHECKPOINT_MAPS[cp]
+            train_cp_map = CHECKPOINT_MAPS[cp]
+            test_cp_map = CHECKPOINT_MAPS[test_cp]
             max_ts = train_X_filtered[0].shape[1]
 
             train_x_cp = []
             train_y_cp = []
             for i in range(num_folds):
-                tx = truncate_pad_data(train_X_filtered[i], cp_map, max_ts)
+                tx = truncate_pad_data(train_X_filtered[i], train_cp_map, max_ts)
                 tx_s, ty_s = shuffle_data(tx, train_y[i])
                 train_x_cp.append(tx_s)
                 train_y_cp.append(ty_s)
@@ -129,7 +136,7 @@ def main():
             test_x_cp = []
             test_y_cp = []
             for i in range(num_folds):
-                tex = truncate_pad_data(test_X_filtered[i], cp_map, max_ts)
+                tex = truncate_pad_data(test_X_filtered[i], test_cp_map, max_ts)
                 tex_s, tey_s = shuffle_data(tex, test_y[i])
                 test_x_cp.append(tex_s)
                 test_y_cp.append(tey_s)
@@ -156,6 +163,7 @@ def main():
                 'model': model_key,
                 'model_name': model_info['name'],
                 'checkpoint': cp,
+                'test_checkpoint': test_cp,
                 'cross_validation': cv_results,
             }
 
@@ -256,11 +264,11 @@ def main():
     print(f"\n{'='*80}")
     print("RESULTS SUMMARY")
     print(f"{'='*80}")
-    print(f"{'Model':<30} {'CP':<5} {'Acc':<10} {'F1':<10} {'AUC':<10} {'Time(s)':<10}")
+    print(f"{'Model':<25} {'TrainCP':<7} {'TestCP':<7} {'Acc':<10} {'F1':<10} {'AUC':<10} {'Time(s)':<10}")
     print("-" * 80)
     for exp_name, r in all_results.items():
         a = r['cross_validation']['averages']
-        print(f"{r['model_name']:<30} {r['checkpoint']:<5} "
+        print(f"{r['model_name']:<25} {r['checkpoint']:<7} {r['test_checkpoint']:<7} "
               f"{a['test']['accuracy_mean']:<10.4f} "
               f"{a['test']['f1_mean']:<10.4f} "
               f"{a['test']['auc_roc_mean']:<10.4f} "
