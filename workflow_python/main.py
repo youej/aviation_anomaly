@@ -79,7 +79,7 @@ def main():
     # Resolve model and checkpoint lists
     registry = get_model_factories()
     models = list(registry.keys()) if args.model == 'all' else [args.model]
-    checkpoints = [25, 50, 75, 100] if args.checkpoint == 'all' else [int(args.checkpoint)]
+    checkpoints = [25, 50, 75, 100] if args.checkpoint == 'all' else [int(args.checkpoint) if args.checkpoint.isdigit() else args.checkpoint]
 
     for m in models:
         if m not in registry:
@@ -212,13 +212,78 @@ def main():
                     
                     # 'temporal_heatmap' is the key returned by both grad_cam and gradient_saliency
                     heatmap_data = gc['temporal_heatmap']
+                    full_saliency = gc['full_saliency']
                     
                     explain_results['gradient'] = {
                         'method': gc['method'],
                         'heatmap_mean': heatmap_data.mean(axis=0).tolist(),
                         'heatmap': heatmap_data.tolist()[:10],  # Save first 10 for detailed check
+                        'full_saliency_mean': full_saliency.mean(axis=0).tolist(),  # (timesteps, features)
+                        'full_saliency': full_saliency.tolist()[:10],  # First 10 samples
                     }
                     print(f"  Method: {gc['method']}")
+
+                # ── EARLIEST Halting Analysis ──
+                # Automatically runs when the model is EARLIEST, regardless of flags
+                from models.earliest import EARLIEST as EARLIEST_CLASS
+                if isinstance(explain_model_instance, EARLIEST_CLASS):
+                    print("\n--- EARLIEST Halting Analysis ---")
+                    test_x = test_x_cp[last]
+                    test_y = test_y_cp[last].flatten()
+                    halt_times, halt_preds = explain_model_instance.get_halting_points(
+                        test_x, threshold=0.1
+                    )
+                    total_timesteps = test_x.shape[1]
+
+                    # Split by true label
+                    nominal_mask = test_y == 0
+                    anomalous_mask = test_y == 1
+                    halt_nominal = halt_times[nominal_mask]
+                    halt_anomalous = halt_times[anomalous_mask]
+
+                    # Statistics
+                    halting_stats = {
+                        'total_timesteps': int(total_timesteps),
+                        'threshold': 0.1,
+                        'overall': {
+                            'mean': float(np.mean(halt_times)),
+                            'median': float(np.median(halt_times)),
+                            'std': float(np.std(halt_times)),
+                            'n_samples': int(len(halt_times)),
+                        },
+                        'nominal': {
+                            'mean': float(np.mean(halt_nominal)),
+                            'median': float(np.median(halt_nominal)),
+                            'std': float(np.std(halt_nominal)),
+                            'n_samples': int(len(halt_nominal)),
+                            'halt_times': halt_nominal.tolist(),
+                        },
+                        'anomalous': {
+                            'mean': float(np.mean(halt_anomalous)),
+                            'median': float(np.median(halt_anomalous)),
+                            'std': float(np.std(halt_anomalous)),
+                            'n_samples': int(len(halt_anomalous)),
+                            'halt_times': halt_anomalous.tolist(),
+                        },
+                        # Histogram bins for easy plotting
+                        'histogram': {
+                            'bins': list(range(total_timesteps + 1)),
+                            'nominal_counts': np.histogram(
+                                halt_nominal, bins=range(total_timesteps + 1)
+                            )[0].tolist(),
+                            'anomalous_counts': np.histogram(
+                                halt_anomalous, bins=range(total_timesteps + 1)
+                            )[0].tolist(),
+                        },
+                    }
+                    explain_results['halting_analysis'] = halting_stats
+
+                    print(f"  Overall:   mean={halting_stats['overall']['mean']:.1f} / "
+                          f"{total_timesteps} ({halting_stats['overall']['mean']/total_timesteps*100:.1f}%)")
+                    print(f"  Nominal:   mean={halting_stats['nominal']['mean']:.1f} / "
+                          f"{total_timesteps} ({halting_stats['nominal']['mean']/total_timesteps*100:.1f}%)")
+                    print(f"  Anomalous: mean={halting_stats['anomalous']['mean']:.1f} / "
+                          f"{total_timesteps} ({halting_stats['anomalous']['mean']/total_timesteps*100:.1f}%)")
 
                 if args.lime:
                     from explainability import batch_lime_explain

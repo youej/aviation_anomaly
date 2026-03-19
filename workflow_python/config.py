@@ -77,12 +77,12 @@ GRU_CONFIG = {
 CNN_CONFIG = {
     'kernel_sizes': [8, 5, 3],
     'filters': [16, 32, 64],
-    'learning_rate': 0.001,
-    'weight_decay': 0.01,
+    'learning_rate': 5e-4,
+    'weight_decay': 1e-3,
     'dropout': 0.1,
     'recurrent_dropout': 0.1,
-    'kernel_regularizer': l2(0.01),
-    'recurrent_regularizer': l2(0.01),
+    'kernel_regularizer': l2(1e-3),
+    'recurrent_regularizer': l2(1e-3),
 }
 
 
@@ -103,13 +103,13 @@ GTN_CONFIG = {
 # ── InceptionTime Hyperparameters ─────────────────────────────────────────
 
 INCEPTION_CONFIG = {
-    'nb_filters': 32,
-    'depth': 6,
-    'kernel_sizes': [10, 20, 40],
-    'bottleneck_size': 32,
+    'nb_filters': 16,             # Reduce from 32 to 16
+    'depth': 3,                   # Reduce from 6 to 3
+    'kernel_sizes': [5, 10, 20],  # Reduce from [10, 20, 40]
+    'bottleneck_size': 16,        # Reduce from 32
     'learning_rate': 1e-3,
-    'weight_decay': 1e-4,
-    'dropout': 0.2,
+    'weight_decay': 1e-3,         # Increase from 1e-4
+    'dropout': 0.4,               # Increase from 0.2
 }
 
 
@@ -160,7 +160,7 @@ def get_model_factories(input_shape=INPUT_SHAPE):
     initialization for each fold.
     """
     from models import (BaseGRU, MultiHeadCnnRnn, MultiHeadAttention,
-                        GatedTransformerNetwork, InceptionTime, EARLIEST)
+                        GatedTransformerNetwork, InceptionTime, InceptionTimeEnsemble, EARLIEST)
 
     return {
         'base_gru': {

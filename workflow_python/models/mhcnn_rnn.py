@@ -41,7 +41,7 @@ class MultiHeadCnnRnn:
             for j in range(len(self.kernel_sizes)):
                 head = Conv1D(filters=self.filters[j],
                               kernel_size=self.kernel_sizes[j],
-                              activation='relu',
+                              activation='relu', padding='same',
                               kernel_regularizer=l2(self.weight_decay))(head)
                 head = BatchNormalization()(head)
             head = Conv1D(filters=1, kernel_size=1, padding='same',

@@ -306,6 +306,60 @@ def plot_gradcam_heatmap(heatmap, raw_signal=None, timesteps=None,
     plt.show()
 
 
+def plot_saliency_heatmap_2d(saliency, feature_names=None, model_name='Model',
+                              checkpoint_pct=None, save_path=None):
+    """
+    Plot a 2D saliency heatmap (timesteps × features).
+
+    Shows which features at which timesteps are most important for
+    the model's prediction, providing both temporal and feature-level
+    attribution in a single visualization.
+
+    Args:
+        saliency: 2D array of shape (timesteps, features).
+        feature_names: List of feature names for the y-axis.
+        model_name: Name for the plot title.
+        checkpoint_pct: Optional checkpoint percentage to show in title.
+        save_path: Optional path to save the figure.
+    """
+    timesteps, n_features = saliency.shape
+
+    if feature_names is None:
+        feature_names = [f'F{i}' for i in range(n_features)]
+
+    fig, ax = plt.subplots(figsize=(14, 8))
+
+    # Transpose so features are on y-axis, timesteps on x-axis
+    im = ax.imshow(saliency.T, aspect='auto', cmap='inferno',
+                   interpolation='bilinear',
+                   extent=[0, timesteps, n_features - 0.5, -0.5])
+
+    ax.set_xlabel('Timestep (% of Approach)')
+    ax.set_ylabel('Flight Parameter')
+    ax.set_yticks(np.arange(n_features))
+    ax.set_yticklabels(feature_names, fontsize=8)
+
+    # Add checkpoint marker if provided
+    if checkpoint_pct is not None:
+        cp_timestep = int(timesteps * checkpoint_pct / 100)
+        ax.axvline(x=cp_timestep, color='white', linestyle='--',
+                   linewidth=1.5, alpha=0.8, label=f'{checkpoint_pct}% checkpoint')
+        ax.legend(loc='upper right', fontsize=9)
+
+    title = f'{model_name} — Gradient Saliency (Timestep × Feature)'
+    if checkpoint_pct is not None:
+        title += f' @ {checkpoint_pct}%'
+    ax.set_title(title)
+
+    cbar = plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
+    cbar.set_label('Attribution Magnitude', fontsize=10)
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+    plt.show()
+
+
 # ── Segment Importance (LIME/SHAP) ────────────────────────────────────────
 
 def plot_segment_importance(importance, segments, method='LIME',
@@ -331,6 +385,70 @@ def plot_segment_importance(importance, segments, method='LIME',
 
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
+    plt.show()
+
+# ── EARLIEST Halting Distribution ─────────────────────────────────────────
+
+def plot_halting_distribution(halting_data, model_name='EARLIEST',
+                              save_path=None):
+    """
+    Overlaid histograms of halt times for nominal vs anomalous flights.
+
+    Parameters
+    ----------
+    halting_data : dict
+        The 'halting_analysis' dict from the results JSON, containing
+        'nominal', 'anomalous', and 'total_timesteps' keys.
+    model_name : str
+    save_path : str or None
+    """
+    import numpy as np
+
+    nominal_times = np.array(halting_data['nominal']['halt_times'])
+    anomalous_times = np.array(halting_data['anomalous']['halt_times'])
+    total_ts = halting_data['total_timesteps']
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    bins = np.arange(0, total_ts + 1, 2)  # 2-timestep bins for clarity
+
+    ax.hist(nominal_times, bins=bins, alpha=0.6, color='#2196F3',
+            label=f'Nominal (n={len(nominal_times)}, '
+                  f'mean={halting_data["nominal"]["mean"]:.1f}, '
+                  f'median={halting_data["nominal"]["median"]:.0f})',
+            density=True, edgecolor='white', linewidth=0.5)
+
+    ax.hist(anomalous_times, bins=bins, alpha=0.6, color='#F44336',
+            label=f'Anomalous (n={len(anomalous_times)}, '
+                  f'mean={halting_data["anomalous"]["mean"]:.1f}, '
+                  f'median={halting_data["anomalous"]["median"]:.0f})',
+            density=True, edgecolor='white', linewidth=0.5)
+
+    # Mean halt markers
+    ax.axvline(halting_data['nominal']['mean'], color='#1565C0',
+               linestyle='--', linewidth=2, label='Nominal mean')
+    ax.axvline(halting_data['anomalous']['mean'], color='#C62828',
+               linestyle='--', linewidth=2, label='Anomalous mean')
+
+    ax.set_xlabel('Halting Timestep')
+    ax.set_ylabel('Density')
+    ax.set_title(f'{model_name} — Halting Time Distribution by Class')
+    ax.legend(fontsize=9, loc='upper left')
+    ax.set_xlim(-1, total_ts + 1)
+    ax.grid(True, alpha=0.2, axis='y')
+
+    # Add percentage annotation
+    pct_nominal = halting_data['nominal']['mean'] / total_ts * 100
+    pct_anomalous = halting_data['anomalous']['mean'] / total_ts * 100
+    ax.text(0.97, 0.95,
+            f'Nominal: halt at {pct_nominal:.0f}% of approach\n'
+            f'Anomalous: halt at {pct_anomalous:.0f}% of approach',
+            transform=ax.transAxes, fontsize=10, va='top', ha='right',
+            bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=150)
     plt.show()
 
 

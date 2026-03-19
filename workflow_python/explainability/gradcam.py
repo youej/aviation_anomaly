@@ -174,6 +174,9 @@ def explain_model(model, input_data):
     Automatically selects Grad-CAM for models with Conv1D layers,
     or gradient saliency for models without.
 
+    Always computes input-gradient saliency to provide a 2D
+    (timesteps × features) attribution map for every model.
+
     Args:
         model: Any model from the benchmark suite.
         input_data: Input data, shape (batch, timesteps, features).
@@ -182,8 +185,11 @@ def explain_model(model, input_data):
         dict with keys:
             'method': 'grad_cam' or 'gradient_saliency'
             'temporal_heatmap': shape (batch, timesteps)
-            'full_saliency': shape (batch, timesteps, features) — only for saliency.
+            'full_saliency': shape (batch, timesteps, features) — always present.
     """
+    # Always compute input-gradient saliency for the 2D feature map
+    temporal, full = gradient_saliency(model, input_data)
+
     conv_layer = find_last_conv_layer(model)
 
     if conv_layer is not None:
@@ -192,9 +198,9 @@ def explain_model(model, input_data):
             'method': 'grad_cam',
             'temporal_heatmap': heatmap,
             'target_layer': conv_layer,
+            'full_saliency': full,
         }
     else:
-        temporal, full = gradient_saliency(model, input_data)
         return {
             'method': 'gradient_saliency',
             'temporal_heatmap': temporal,

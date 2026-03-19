@@ -9,7 +9,9 @@ from visualization.plots import (
     plot_calibration,
     plot_rejection_curve,
     plot_gradcam_heatmap,
+    plot_saliency_heatmap_2d,
     plot_segment_importance,
+    plot_halting_distribution,
     plot_training_times,
 )
 
@@ -22,6 +24,9 @@ __all__ = [
     'plot_calibration',
     'plot_rejection_curve',
     'plot_gradcam_heatmap',
+    'plot_saliency_heatmap_2d',
     'plot_segment_importance',
+    'plot_halting_distribution',
     'plot_training_times',
 ]
+

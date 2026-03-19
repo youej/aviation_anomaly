@@ -218,7 +218,17 @@ class InceptionTimeEnsemble:
             h = m.fit(x, y, epochs=epochs, batch_size=batch_size,
                       validation_data=validation_data, **kwargs)
             histories.append(h)
-        return histories
+        # Merge histories by averaging per-epoch metrics across ensemble members
+        # so downstream code expecting history.history['loss'] etc. works.
+        merged = {}
+        all_keys = histories[0].history.keys()
+        for key in all_keys:
+            arrays = [np.array(h.history[key]) for h in histories]
+            min_len = min(len(a) for a in arrays)
+            trimmed = [a[:min_len] for a in arrays]
+            merged[key] = np.mean(trimmed, axis=0).tolist()
+        from types import SimpleNamespace
+        return SimpleNamespace(history=merged)
 
     def predict(self, x):
         predictions = [m.predict(x) for m in self.models]
@@ -229,6 +239,11 @@ class InceptionTimeEnsemble:
         preds_binary = (preds > 0.5).astype(int).flatten()
         accuracy = np.mean(preds_binary == y.flatten())
         return accuracy
+
+    @property
+    def model(self):
+        """Expose first member's Keras model for count_params() compatibility."""
+        return self.models[0].model
 
     def summary(self):
         return self.models[0].summary()
